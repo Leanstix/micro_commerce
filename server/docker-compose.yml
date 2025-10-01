@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: mc
+      POSTGRES_USER: mc
+      POSTGRES_PASSWORD: mc
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://mc:mc@db:5432/mc
+      SECRET_KEY: change-me
+      DEBUG: "1"
+      ALLOWED_HOSTS: "*"
+    depends_on:
+      - db
+volumes:
+  pgdata:
