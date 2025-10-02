@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, Pressable, TextInput, StyleSheet } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, Pressable, TextInput, StyleSheet, Alert } from 'react-native';
 import { getCart, updateCartItem, deleteCartItem } from '../lib/api';
 import { useRouter } from 'expo-router';
 
@@ -31,7 +31,43 @@ export default function CartScreen() {
               <Text style={{ fontWeight:'700' }}>{item.product.name}</Text>
               <Text>Qty: {item.quantity}</Text>
             </View>
-            <Pressable style={styles.btn} onPress={() => updateCartItem(item.id, item.quantity + 1).then(load)}><Text style={styles.btnText}>+</Text></Pressable>
+            <Pressable
+              style={styles.btn}
+              onPress={async () => {
+                try {
+                  await updateCartItem(item.id, item.quantity + 1);
+                  await load();
+                } catch (e) {
+                  const status = e?.response?.status;
+                  if (status === 409) {
+                    const meta = e.response?.data?.meta;
+                    const available = meta?.available ?? 0;
+                    Alert.alert(
+                      'Out of stock',
+                      `Only ${available} left for "${item.product.name}".`,
+                      [
+                        {
+                          text: 'Set to available',
+                          onPress: async () => {
+                            if (available > 0) {
+                              await updateCartItem(item.id, available).catch(() => {});
+                            } else {
+                              await deleteCartItem(item.id).catch(() => {});
+                            }
+                            await load();
+                          }
+                        },
+                        { text: 'OK' }
+                      ]
+                    );
+                  } else {
+                    Alert.alert('Error', 'Could not update quantity.');
+                  }
+                }
+              }}
+            >
+              <Text style={styles.btnText}>+</Text>
+            </Pressable>
             <Pressable style={styles.btn} onPress={() => updateCartItem(item.id, Math.max(1, item.quantity - 1)).then(load)}><Text style={styles.btnText}>-</Text></Pressable>
             <Pressable style={[styles.btn, { backgroundColor:'#991b1b' }]} onPress={() => deleteCartItem(item.id).then(load)}><Text style={styles.btnText}>x</Text></Pressable>
           </View>

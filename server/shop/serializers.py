@@ -29,3 +29,6 @@ class CartOut(serializers.ModelSerializer):
 
 class CheckoutIn(serializers.Serializer):
     email = serializers.EmailField(required=False)
+
+class CartItemQty(serializers.Serializer):
+    quantity = serializers.IntegerField(min_value=1)

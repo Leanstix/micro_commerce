@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import { getSessionKey, getAccessToken, getRefreshToken, setTokens, clearTokens } from './session';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? Constants.expoConfig?.extra?.apiUrl ?? "http://127.0.0.1:8000";
+console.log("API_URL =", API_URL);
 export const api = axios.create({ baseURL: `${API_URL}/api` });
 
 api.interceptors.request.use(async (config) => {
@@ -36,7 +37,7 @@ api.interceptors.response.use(
           queue.push({ resolve: (t) => { original.headers['Authorization'] = `Bearer ${t}`; resolve(api(original)); }, reject });
         });
       }
-      isRefreshing = True
+      isRefreshing = true
       try {
         const refresh = await getRefreshToken();
         if (!refresh) throw new Error('no refresh');
@@ -74,7 +75,7 @@ export async function getCart() {
   return data;
 }
 export async function updateCartItem(id, quantity) {
-  const { data } = await api.patch(`/cart/items/${id}`, { product_id: 'ignored', quantity });
+  const { data } = await api.patch(`/cart/items/${id}`, { quantity });
   return data;
 }
 export async function deleteCartItem(id) {

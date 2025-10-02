@@ -2,7 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Product, CartItem
-from .serializers import ProductOut, ProductIn, CartItemIn, CartOut, CheckoutIn
+from .serializers import ProductOut, ProductIn, CartItemIn, CartOut, CheckoutIn, CartItemQty
 from .filters import ProductFilter
 from .permissions import IsAdmin
 from .services import get_or_create_cart, checkout_cart, OutOfStock
@@ -56,12 +56,20 @@ class CartItemCreate(APIView):
 class CartItemUpdate(APIView):
     def patch(self, request, pk):
         cart = _cart_from_request(request)
-        data = CartItemIn(data=request.data); data.is_valid(raise_exception=True)
+        data = CartItemQty(data=request.data); data.is_valid(raise_exception=True)
         try:
             item = CartItem.objects.get(pk=pk, cart=cart)
         except CartItem.DoesNotExist:
             return Response(status=404)
-        item.quantity = data.validated_data["quantity"]; item.save()
+        item.quantity = data.validated_data["quantity"]
+        p = item.product
+        if data.validated_data["quantity"] > p.stock:
+            return Response(
+                {"error":"OUT_OF_STOCK","detail":"Insufficient stock",
+                "meta":{"product_id": str(p.id), "requested": data.validated_data["quantity"], "available": p.stock}},
+                status=409
+            )
+        item.save()
         return Response({"ok": True})
 
     def delete(self, request, pk):
