@@ -10,6 +10,7 @@ class Product(models.Model):
     currency = models.CharField(max_length=8, default="NGN")
     sku = models.CharField(max_length=64, unique=True)
     stock = models.PositiveIntegerField(default=0)
+    image = models.ImageField(upload_to="products/", blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

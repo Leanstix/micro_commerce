@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+const INTENT = 'pending_intent';
 
 const SK = 'session_key';
 const AT = 'access_token';
@@ -33,4 +34,15 @@ export async function getRefreshToken() {
 
 export async function clearTokens() {
   await AsyncStorage.multiRemove([AT, RT]);
+}
+
+
+export async function setPendingIntent(intentObj) {
+  await AsyncStorage.setItem(INTENT, JSON.stringify(intentObj));
+}
+export async function popPendingIntent() {
+  const raw = await AsyncStorage.getItem(INTENT);
+  if (!raw) return null;
+  await AsyncStorage.removeItem(INTENT);
+  try { return JSON.parse(raw); } catch { return null; }
 }

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import axios from 'axios';
+import { setTokens, popPendingIntent } from '../lib/session';
+import { useRouter } from 'expo-router';
+import { login as apiLogin } from '../lib/api';
 import Constants from 'expo-constants';
-import { setTokens } from '../lib/session';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? Constants.expoConfig?.extra?.apiUrl ?? "http://127.0.0.1:8000";
 
@@ -10,12 +11,19 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState('');
+  const router = useRouter();
 
   async function handleLogin() {
     try {
-      const { data } = await axios.post(`${API_URL}/api/auth/login`, { username, password });
+      const data = await apiLogin(username, password);
       await setTokens({ access: data.access, refresh: data.refresh });
       setMsg('Logged in.');
+      const intent = await popPendingIntent();
+      if (intent?.type === 'checkout') {
+        router.replace({ pathname: '/checkout', params: { email: intent.email || '' } });
+      } else {
+        router.replace('/');
+      }
     } catch (e) {
       setMsg('Login failed.');
     }

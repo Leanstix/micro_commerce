@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, Pressable, TextInput, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, Pressable, TextInput, StyleSheet, Alert, Image } from 'react-native';
+import { colors, radius, spacing } from '../lib/theme';
 import { getCart, updateCartItem, deleteCartItem } from '../lib/api';
 import { useRouter } from 'expo-router';
+import { me } from '../lib/api';
+import { setPendingIntent } from '../lib/session';
 
 export default function CartScreen() {
   const [cart, setCart] = useState(null);
@@ -21,15 +24,16 @@ export default function CartScreen() {
   const total = cart.items.reduce((s, it) => s + it.quantity * it.product.price_cents, 0);
 
   return (
-    <View style={{ flex:1, padding: 12 }}>
+    <View style={{ flex:1, padding: spacing, backgroundColor: colors.bg }}>
       <FlatList
         data={cart.items}
         keyExtractor={(it) => String(it.id)}
         renderItem={({ item }) => (
           <View style={styles.row}>
-            <View style={{ flex:1 }}>
-              <Text style={{ fontWeight:'700' }}>{item.product.name}</Text>
-              <Text>Qty: {item.quantity}</Text>
+            <SmartImage uri={item.product.image || item.product.image_url} style={{ width:56, height:56, borderRadius:10, marginRight:8 }} />
+            <View style={{ flex:1, gap:2 }}>
+              <Text style={{ fontWeight:'800', color: colors.text }}>{item.product.name}</Text>
+              <Text style={{ color: colors.subtext }}>Qty: {item.quantity}</Text>
             </View>
             <Pressable
               style={styles.btn}
@@ -74,19 +78,30 @@ export default function CartScreen() {
         )}
         ListFooterComponent={<View style={{ height: 20 }} />}
       />
-      <Text style={{ fontWeight:'700', marginTop: 8 }}>Total: {(total/100).toLocaleString(undefined, { style:'currency', currency:'NGN' })}</Text>
-      <TextInput placeholder="Email for receipt (optional)" value={email} onChangeText={setEmail} style={styles.input}/>
-      <Pressable onPress={()=>router.push({ pathname:'/checkout', params: { email }})} style={styles.checkout}>
-        <Text style={{ color:'white', fontWeight:'700' }}>Checkout</Text>
+      <Text style={{ fontWeight:'800', marginTop: 8, color: colors.text }}>Total: {(total/100).toLocaleString(undefined, { style:'currency', currency:'NGN' })}</Text>
+      <TextInput placeholder="Email for receipt (optional)" placeholderTextColor={colors.subtext} value={email} onChangeText={setEmail} style={styles.input}/>
+      <Pressable
+        onPress={async () => {
+          try {
+            await me();
+            router.push({ pathname: '/checkout', params: { email } });
+          } catch {
+          await setPendingIntent({ type: 'checkout', email });
+          router.push('/login');
+          }
+        }}
+        style={styles.checkout}
+      >
+        <Text style={{ color:'white', fontWeight:'800' }}>Checkout</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection:'row', alignItems:'center', borderWidth:1, borderColor:'#ddd', padding:12, borderRadius:8, marginBottom:8, backgroundColor:'white', gap:8 },
-  btn: { backgroundColor:'#111827', paddingHorizontal:10, paddingVertical:6, borderRadius:6 },
-  btnText: { color:'white', fontWeight:'700' },
-  input: { borderWidth:1, borderColor:'#ccc', borderRadius:8, paddingHorizontal:10, height:40, backgroundColor:'white', marginTop:8 },
-  checkout: { backgroundColor:'#111827', padding:14, borderRadius:10, alignItems:'center', marginTop:12 }
+  row: { flexDirection:'row', alignItems:'center', borderWidth:1, borderColor:colors.border, padding:12, borderRadius:radius, marginBottom:8, backgroundColor:colors.card, gap:8 },
+  btn: { backgroundColor: colors.primary, paddingHorizontal:10, paddingVertical:6, borderRadius:8 },
+  btnText: { color:'#fff', fontWeight:'800' },
+  input: { borderWidth:1, borderColor:colors.border, borderRadius:radius, paddingHorizontal:12, height:40, backgroundColor:colors.card, color:colors.text, marginTop:8 },
+  checkout: { backgroundColor: colors.accent, padding:14, borderRadius:12, alignItems:'center', marginTop:12 }
 });

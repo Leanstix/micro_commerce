@@ -1,8 +1,9 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Product, CartItem
-from .serializers import ProductOut, ProductIn, CartItemIn, CartOut, CheckoutIn, CartItemQty
+from rest_framework import permissions
+from .models import Product, CartItem, Order
+from .serializers import ProductOut, ProductIn, CartItemIn, CartOut, CheckoutIn, CartItemQty, CartItemOut
 from .filters import ProductFilter
 from .permissions import IsAdmin
 from .services import get_or_create_cart, checkout_cart, OutOfStock
@@ -40,7 +41,10 @@ class AdminProductUpdate(generics.RetrieveUpdateDestroyAPIView):
 class CartView(APIView):
     def get(self, request):
         cart = _cart_from_request(request)
-        return Response(CartOut(cart).data)
+        items = CartItem.objects.filter(cart=cart).select_related("product")
+        data = CartItemOut(items, many=True, context={"request": request}).data 
+        total = sum(i.product.price_cents * i.quantity for i in items)
+        return Response({"items": data, "total_cents": total})
 
 class CartItemCreate(APIView):
     def post(self, request):
@@ -78,6 +82,7 @@ class CartItemUpdate(APIView):
         return Response(status=204)
 
 class CheckoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
     def post(self, request):
         cart = _cart_from_request(request)
         data = CheckoutIn(data=request.body and request.data); data.is_valid(raise_exception=True)
@@ -91,3 +96,17 @@ class CheckoutView(APIView):
         if not order:
             return Response({"error":"EMPTY_CART"}, status=400)
         return Response({"order_id": str(order.id), "status": order.status, "total_cents": order.total_cents}, status=201)
+    
+class MyOrdersView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        orders = Order.objects.filter(user=request.user).order_by("-created_at")
+        # very small inline serializer to avoid a new file
+        return Response([
+            {
+                "id": str(o.id),
+                "status": o.status,
+                "total_cents": o.total_cents,
+                "created_at": o.created_at,
+            } for o in orders
+        ])

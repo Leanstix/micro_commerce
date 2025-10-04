@@ -26,6 +26,15 @@ function onFailed(err) {
   queue = [];
 }
 
+export async function adminCreateProduct(fields) {
+  const fd = new FormData();
+  Object.entries(fields).forEach(([k,v]) => fd.append(k, v));
+  const { data } = await api.post('/admin/products', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return data;
+}
+
 api.interceptors.response.use(
   (r) => r,
   async (error) => {
@@ -86,6 +95,31 @@ export async function checkout(email) {
   return data;
 }
 export async function login(username, password) {
-  const { data } = await axios.post(`${API_URL}/api/auth/login`, { username, password });
+  const sk = await getSessionKey();
+  const { data } = await axios.post(
+    `${API_URL}/api/auth/login`,
+    { username, password },
+    { headers: { 'X-Session-Key': sk } }
+  );
+  return data;
+}
+
+export async function signup(email, password) {
+  const { data } = await axios.post(`${API_URL}/api/auth/signup`, { email, password });
+  return data; 
+}
+
+export async function verifyEmail(token) {
+  const { data } = await axios.get(`${API_URL}/api/auth/verify`, { params: { token } });
+  return data; 
+}
+
+export async function me() {
+  const { data } = await api.get('/auth/me');
+  return data; 
+}
+
+export async function myOrders() {
+  const { data } = await api.get('/orders/me');
   return data;
 }

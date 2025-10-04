@@ -1,15 +1,32 @@
 from rest_framework import serializers
 from .models import Product, Cart, CartItem, Order, OrderItem
+from django.contrib.auth.password_validation import validate_password
+from django.core import exceptions as dj_exc
+
+class SignupIn(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+
+    def validate(self, attrs):
+        # run Django's password validators
+        pw = attrs["password"]
+        try:
+            validate_password(pw)
+        except dj_exc.ValidationError as e:
+            raise serializers.ValidationError({"password": list(e.messages)})
+        return attrs
 
 class ProductOut(serializers.ModelSerializer):
+    image = serializers.ImageField(read_only=True)
     class Meta:
         model = Product
         fields = "__all__"
 
 class ProductIn(serializers.ModelSerializer):
+    image = serializers.ImageField(required=False, allow_null=True)
     class Meta:
         model = Product
-        fields = ["name","description","price_cents","currency","sku","stock","is_active"]
+        fields = ["name","description","price_cents","currency","sku","stock","is_active","image"]
 
 class CartItemIn(serializers.Serializer):
     product_id = serializers.UUIDField()
