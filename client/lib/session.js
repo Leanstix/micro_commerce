@@ -19,30 +19,31 @@ export async function getSessionKey() {
   return sk;
 }
 
+export async function getAccessToken() {
+  return AsyncStorage.getItem(AT);
+}
+export async function getRefreshToken() {
+  return AsyncStorage.getItem(RT);
+}
+export async function clearTokens() {
+  await AsyncStorage.multiRemove([AT, RT]);
+}
+export async function logout() {
+  await clearTokens();
+}
+
 export async function setTokens({ access, refresh }) {
   if (access) await AsyncStorage.setItem(AT, access);
   if (refresh) await AsyncStorage.setItem(RT, refresh);
 }
 
-export async function getAccessToken() {
-  return AsyncStorage.getItem(AT);
-}
-
-export async function getRefreshToken() {
-  return AsyncStorage.getItem(RT);
-}
-
-export async function clearTokens() {
-  await AsyncStorage.multiRemove([AT, RT]);
-}
-
-
 export async function setPendingIntent(intentObj) {
   await AsyncStorage.setItem(INTENT, JSON.stringify(intentObj));
 }
+
 export async function popPendingIntent() {
   const raw = await AsyncStorage.getItem(INTENT);
   if (!raw) return null;
   await AsyncStorage.removeItem(INTENT);
-  try { return JSON.parse(raw); } catch { return null; }
+  try { return JSON.parse(raw); } catch (error) { console.error('Failed to parse pending intent:', error); return null; }
 }

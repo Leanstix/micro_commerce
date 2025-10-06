@@ -19,7 +19,6 @@ def make_verify_token(user_id: int) -> str:
     return signing.TimestampSigner(salt=SIGNER_SALT).sign(user_id)
 
 def verify_token_value(token: str) -> int:
-    # returns user_id or raises
     unsigned = signing.TimestampSigner(salt=SIGNER_SALT).unsign(token, max_age=TOKEN_MAX_AGE)
     return int(unsigned)
 
@@ -32,12 +31,9 @@ class SignupView(APIView):
         password = data.validated_data["password"]
         if User.objects.filter(email__iexact=email).exists():
             return Response({"error":"EMAIL_TAKEN"}, status=400)
-        # username == email for simplicity
         user = User.objects.create_user(username=email, email=email, password=password, is_active=False)
         token = make_verify_token(user.id)
-        verify_link = f'{settings.SITE_URL}/api/auth/verify?token={token}'
-        # "Send" email (console backend) + also return link in dev to make testing easy
-        # In prod: send mail and don't return the link
+        verify_link = f'Vericication Token: {token}'
         print(f"[VERIFY] {email} -> {verify_link}")
         return Response({"ok": True, "verify_link": verify_link}, status=201)
 

@@ -33,10 +33,21 @@ export default function ProductScreen() {
         <Text style={{ fontWeight:'800', color: colors.text, fontSize: 18 }}>
           {(p.price_cents/100).toLocaleString(undefined, { style:'currency', currency: p.currency||'NGN' })}
         </Text>
-        <Pressable onPress={() => addToCart(p.id, 1)} style={{ backgroundColor: colors.primary, padding:12, borderRadius: radius, alignSelf:'flex-start' }}>
-          <Text style={{ color:'#fff', fontWeight:'700' }}>Add to Cart</Text>
+        <Pressable 
+          onPress={() => addToCart(p.id, 1)}
+          disabled = {!p.stock || p.stock <= 0}
+          style={[styles.btn, (!p.stock || p.stock <= 0) && { opacity: 0.4 }]}
+        >
+        <Text style={styles.btnText}>
+          {(!p.stock || p.stock <= 0) ? 'Out of stock' : 'Add'}
+        </Text>
         </Pressable>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  btn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  btnText: { color: '#fff', fontWeight: '700' },
+})

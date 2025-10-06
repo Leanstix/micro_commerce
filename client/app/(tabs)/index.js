@@ -1,11 +1,19 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TextInput, Pressable, StyleSheet } from 'react-native';
-import { colors, spacing, radius } from '../lib/theme';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { View, Text, FlatList, ActivityIndicator, TextInput, Pressable, StyleSheet, useWindowDimensions, Platform } from 'react-native';
+import { colors, spacing, radius } from '../../lib/theme';
 import { useRouter } from 'expo-router';
-import { listProducts, addToCart } from '../lib/api';
-import ProductCard from '../components/ProductCard';
+import { listProducts, addToCart } from '../../lib/api';
+import ProductCard from '../../components/ProductCard';
+import { getNumColumns, computeCardWidth, GUTTER, PADDING } from '../../lib/layout';
+import { useRefetchOnFocus } from '../../lib/focusRefresh';
+
 
 export default function ProductsList() {
+  const { width: vw } = useWindowDimensions();
+  const MAX_WIDTH = 1200;
+  const contentWidth = Math.min(vw, MAX_WIDTH);
+  const numColumns = useMemo(() => getNumColumns(contentWidth), [contentWidth]);
+  const cardWidth = useMemo(() => computeCardWidth(contentWidth, numColumns), [contentWidth, numColumns]);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
@@ -47,6 +55,7 @@ export default function ProductsList() {
   useEffect(() => {
     fetchPage({ reset: true, pageNum: 1 });
   }, [q, fetchPage]);
+  useRefetchOnFocus(() => fetchPage({ reset: true, pageNum: 1 }), { minIntervalMs: 1200 });
 
   const loadMore = async () => {
     if (fetchingMoreRef.current || loading || !hasMore || data.length === 0) return;
@@ -58,7 +67,8 @@ export default function ProductsList() {
   };
 
   return (
-    <View style={{ flex: 1, padding: spacing, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center' }}>
+      <View style={{ width: contentWidth, paddingHorizontal: PADDING, paddingTop: spacing }}></View>
       <View style={styles.searchRow}>
         <TextInput
           placeholder="Search products..."
@@ -77,17 +87,31 @@ export default function ProductsList() {
       ) : (
         <FlatList
           data={data}
-          keyExtractor={(item, index) => item.id ?? String(index)}
+          keyExtractor={(item, index) => (item.id ?? String(index)) + `-c${numColumns}`}
+          key={`grid-${numColumns}`}
           renderItem={({ item }) => (
             <ProductCard
               item={item}
               onPress={() => router.push(`/product/${item.id}`)}
-              onAdd={() => addToCart(item.id, 1).catch(() => {})}
+              onAdd={async () => {
+                try { await addToCart(item.id, 1); }
+                catch (e) {
+                  if (e?.response?.status === 409) {
+                    const av = e.response?.data?.meta?.available ?? 0;
+                    alert(av > 0
+                      ? `Only ${av} left in stock.`
+                      : 'This item is out of stock.');
+                  } else {
+                    alert('Could not add to cart.');
+                  }
+                }
+              }}
+              width={cardWidth}
             />
           )}
-          numColumns={2}
-          columnWrapperStyle={{ gap: spacing }}
-          contentContainerStyle={{ gap: spacing }}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? { gap: GUTTER } : undefined}
+          ItemSeparatorComponent={() => <View style={{ height: GUTTER }} />}
           style={{ marginTop: spacing }}
           onEndReachedThreshold={0.2}
           onMomentumScrollBegin={() => { canLoadMoreRef.current = true; }}
@@ -107,7 +131,7 @@ export default function ProductsList() {
 }
 
 const styles = StyleSheet.create({
-  searchRow: { flexDirection: 'row', gap: spacing, marginTop: 4 },
+  searchRow: { flexDirection: 'row', gap: spacing, marginTop: 4, alignItems: 'center' },
   input: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius, paddingHorizontal: 12, height: 42, backgroundColor: colors.card, color: colors.text },
   refreshBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, borderRadius: radius, justifyContent: 'center' },
   cartBtn: { position: 'absolute', right: 16, bottom: 16, backgroundColor: colors.accent, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24 }

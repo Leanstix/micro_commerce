@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.db.models import F
-from .models import Cart, Order, OrderItem, Product
+from django.utils import timezone
+from .models import Cart, Order, OrderItem, Product, CartItem
 
 class OutOfStock(Exception):
     def __init__(self, product_id, requested, available):
@@ -16,36 +17,71 @@ def get_or_create_cart(user=None, session_key=None):
         cart, _ = Cart.objects.get_or_create(session_key=session_key)
     return cart
 
+
+class CheckoutError(Exception):
+    """Raised for business-rule failures (empty cart, stock issues)."""
+    def __init__(self, code, payload=None):
+        super().__init__(code)
+        self.code = code
+        self.payload = payload or {}
+
 @transaction.atomic
-def checkout_cart(cart: Cart, email: str | None, user):
-    cart = Cart.objects.select_for_update().get(pk=cart.pk)
-    items = list(cart.items.select_related("product"))
-    if not items:
-        return None
+def checkout_cart(cart, email, user):
+    """
+    Convert a cart into a paid/pending Order.
+    Returns the created Order instance.
+    Raises CheckoutError for expected business failures.
+    """
+    if not user or not user.is_authenticated:
+        raise CheckoutError("AUTH_REQUIRED")
 
-    total = 0
-    # Lock each product
-    product_ids = [it.product_id for it in items]
-    locked = {p.id: p for p in Product.objects.select_for_update().filter(id__in=product_ids)}
+    cart_items = list(
+        CartItem.objects.select_for_update() 
+        .select_related("product")
+        .filter(cart=cart)
+    )
+    if not cart_items:
+        raise CheckoutError("EMPTY_CART")
 
-    for it in items:
-        p = locked[it.product_id]
-        if it.quantity > p.stock:
-            raise OutOfStock(str(p.id), it.quantity, p.stock)
-        total += it.quantity * p.price_cents
+    conflicts = []
+    for it in cart_items:
+        p = it.product
+        if it.quantity <= 0:
+            conflicts.append({"product_id": str(p.id), "name": p.name, "requested": it.quantity, "available": p.stock})
+        elif it.quantity > p.stock:
+            conflicts.append({"product_id": str(p.id), "name": p.name, "requested": it.quantity, "available": p.stock})
+    if conflicts:
+        raise CheckoutError("INSUFFICIENT_STOCK_AT_CHECKOUT", {"items": conflicts})
 
-    for it in items:
-        Product.objects.filter(pk=it.product_id).update(stock=F("stock") - it.quantity)
+    total_cents = 0
+    for it in cart_items:
+        total_cents += it.quantity * it.product.price_cents
 
     order = Order.objects.create(
-        user=user if (user and getattr(user, "is_authenticated", False)) else None,
-        email=email or (getattr(user, "email", "") if user and getattr(user, "is_authenticated", False) else ""),
+        user=user,
+        email=(email or user.email or ""),
         status="paid",
-        total_cents=total,
+        total_cents=total_cents,
+        created_at=timezone.now(), 
     )
-    OrderItem.objects.bulk_create([
-        OrderItem(order=order, product=it.product, quantity=it.quantity, unit_price_cents=it.product.price_cents)
-        for it in items
-    ])
-    cart.items.all().delete()
+
+    item_rows = []
+    for it in cart_items:
+        p = it.product
+        subtotal = it.quantity * p.price_cents
+        item_rows.append(
+            OrderItem(
+                order=order,
+                product=p,
+                quantity=it.quantity,
+                unit_price_cents=p.price_cents,
+            )
+        )
+        p.stock = p.stock - it.quantity
+        p.save(update_fields=["stock"])
+
+    OrderItem.objects.bulk_create(item_rows)
+
+    CartItem.objects.filter(id__in=[ci.id for ci in cart_items]).delete()
+
     return order

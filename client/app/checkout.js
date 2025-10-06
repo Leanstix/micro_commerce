@@ -14,8 +14,19 @@ export default function CheckoutScreen() {
     try {
       const res = await checkout(email);
       setResult(res);
+      if (res?.id) {
+        router.replace(`/orders/${res.id}`);
+        return;
+      }
     } catch (e) {
-      setResult({ error: e.response?.data || e.message });
+      const s = e?.response?.status;
+      if (s === 409) {
+        const items = e.response?.data?.items || [];
+        const msg = items.map(i => `• ${i.name}: requested ${i.requested}, available ${i.available}`).join('\n');
+        alert(`Stock changed:\n${msg}`);
+      } else {
+        alert('Checkout failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -30,6 +41,11 @@ export default function CheckoutScreen() {
       </Pressable>
       {loading && <ActivityIndicator/>}
       {result && <Text selectable>{JSON.stringify(result, null, 2)}</Text>}
+      {(result?.id || result?.order_id) && (
+        <Pressable onPress={()=>router.replace(`/orders/${result.id ?? result.order_id}`)} style={{ marginTop: 12 }}>
+          <Text style={{ color: '#5b8cff', fontWeight: '800' }}>View receipt</Text>
+        </Pressable>
+      )}
       <Pressable onPress={()=>router.replace('/')} style={{ marginTop: 8 }}><Text>Back to shop</Text></Pressable>
     </View>
   );

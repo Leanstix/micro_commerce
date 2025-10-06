@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, Pressable, TextInput, StyleSheet, Alert, Image } from 'react-native';
-import { colors, radius, spacing } from '../lib/theme';
-import { getCart, updateCartItem, deleteCartItem } from '../lib/api';
+import { colors, radius, spacing } from '../../lib/theme';
+import { getCart, updateCartItem, deleteCartItem } from '../../lib/api';
 import { useRouter } from 'expo-router';
-import { me } from '../lib/api';
-import { setPendingIntent } from '../lib/session';
+import { me } from '../../lib/api';
+import { setPendingIntent } from '../../lib/session';
+import SmartImage from '../../components/SmartImage';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
+import { useRefetchOnFocus } from '../../lib/focusRefresh';
 
 export default function CartScreen() {
   const [cart, setCart] = useState(null);
@@ -18,6 +22,10 @@ export default function CartScreen() {
     setCart(data); setLoading(false);
   }
   useEffect(()=>{ load(); }, []);
+  useRefetchOnFocus(load);
+  // useFocusEffect(useCallback(() => {
+  //   load();
+  // }, [loading]));
 
   if (loading) return <ActivityIndicator/>;
 

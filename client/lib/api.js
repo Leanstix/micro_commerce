@@ -3,14 +3,17 @@ import Constants from 'expo-constants';
 import { getSessionKey, getAccessToken, getRefreshToken, setTokens, clearTokens } from './session';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? Constants.expoConfig?.extra?.apiUrl ?? "http://127.0.0.1:8000";
-console.log("API_URL =", API_URL);
+//console.log("API_URL =", API_URL);
 export const api = axios.create({ baseURL: `${API_URL}/api` });
 
 api.interceptors.request.use(async (config) => {
   const sk = await getSessionKey();
-  config.headers['X-Session-Key'] = sk;
-  const token = await getAccessToken();
-  if (token) config.headers['Authorization'] = `Bearer ${token}`;
+  if (sk) config.headers['X-Session-Key'] = sk;
+
+  const access = await getAccessToken();
+  if (access) config.headers.Authorization = `Bearer ${access}`;
+  else delete config.headers.Authorization;
+
   return config;
 });
 
@@ -24,6 +27,11 @@ function onRefreshed(token) {
 function onFailed(err) {
   queue.forEach(p => p.reject(err));
   queue = [];
+}
+
+export async function getOrder(id) {
+  const { data } = await api.get(`/orders/${id}`);
+  return data;
 }
 
 export async function adminCreateProduct(fields) {

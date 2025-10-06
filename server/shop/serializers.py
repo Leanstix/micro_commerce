@@ -8,7 +8,6 @@ class SignupIn(serializers.Serializer):
     password = serializers.CharField(min_length=8, write_only=True)
 
     def validate(self, attrs):
-        # run Django's password validators
         pw = attrs["password"]
         try:
             validate_password(pw)
@@ -49,3 +48,15 @@ class CheckoutIn(serializers.Serializer):
 
 class CartItemQty(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1)
+
+class OrderItemOut(serializers.ModelSerializer):
+    product = ProductOut()
+    class Meta:
+        model = OrderItem
+        fields = ["product", "quantity", "unit_price_cents", "id", "order"]
+
+class OrderOut(serializers.ModelSerializer):
+    items = OrderItemOut(many=True, read_only=True)
+    class Meta:
+        model = Order
+        fields = ["id", "status", "total_cents", "created_at", "items"]

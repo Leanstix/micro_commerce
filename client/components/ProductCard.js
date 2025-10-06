@@ -4,32 +4,36 @@ import Skeleton from './Skeleton';
 import { colors, radius, spacing, shadow } from '../lib/theme';
 import { useState } from 'react';
 
-export default function ProductCard({ item, onPress, onAdd }) {
+export default function ProductCard({ item, onPress, onAdd, width }) {
   const [loaded, setLoaded] = useState(false);
   return (
-      <Pressable onPress={onPress} style={styles.card}>
-        <View style={styles.imageWrap}>
-          <SmartImage
-            uri={item.image || item.image_url}
-            style={styles.image}
-            contentFit="cover"
-            onLoadEnd={() => setLoaded(true)}
-          />
-          {!loaded && <Skeleton height="100%" radius={radius} />}
-        </View>
-        <View style={{ gap: 4 }}>
-          <Text numberOfLines={1} style={styles.title}>{item.name}</Text>
-          <Text numberOfLines={2} style={styles.desc}>{item.description}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.price}>
-            {(item.price_cents/100).toLocaleString(undefined, { style:'currency', currency: item.currency || 'NGN' })}
-          </Text>
-          <Pressable onPress={onAdd} style={styles.btn}>
-            <Text style={styles.btnText}>Add</Text>
-          </Pressable>
-        </View>
-      </Pressable>
+    <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
+      <View style={styles.imageWrap}>
+        <SmartImage
+          uri={item.image || item.image_url}
+          style={[styles.image, width ? { height: Math.max(140, Math.floor(width)) } : null]}
+          contentFit="cover"
+          onLoadEnd={() => setLoaded(true)}
+       />
+        {!loaded && <Skeleton height="100%" radius={radius} />}
+      </View>
+      <View style={{ gap: 4 }}>
+        <Text numberOfLines={1} style={styles.title}>{item.name}</Text>
+        <Text numberOfLines={2} style={styles.desc}>{item.description}</Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.price}>
+          {(item.price_cents/100).toLocaleString(undefined, { style:'currency', currency: item.currency || 'NGN' })}
+        </Text>
+        <Pressable
+          onPress={onAdd}
+          disabled={!item.stock || item.stock <= 0}
+          style={[styles.btn, (!item.stock || item.stock <= 0) && { opacity: 0.4 }]}
+        >
+          <Text style={styles.btnText}>{(!item.stock || item.stock <= 0) ? 'Out of stock' : 'Add'}</Text>
+        </Pressable>
+      </View>
+    </Pressable>
   );
 }
 
