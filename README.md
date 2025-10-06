@@ -1,7 +1,7 @@
 # Micro-Commerce (Django + Expo) — README
 
 A compact full-stack micro-commerce app: **Django + DRF** backend and **Expo (React Native)** client.  
-Features: products with images (local `/media/` or S3), guest carts with session key, signup + email verify, login with **guest→user cart merge**, checkout → **order receipt**, orders history, responsive product grid, tabs nav, logout, and re-fetch on tab focus.
+Features: products with images (served locally via `/media/`), guest carts with session key, signup + email verify, login with **guest→user cart merge**, checkout → **order receipt**, orders history, responsive product grid, tabs nav, logout, and re-fetch on tab focus. **Admin-only controls use the built-in Django Admin dashboard** (no custom admin UI, no S3 required).
 
 ---
 
@@ -12,6 +12,7 @@ Features: products with images (local `/media/` or S3), guest carts with session
   - [Backend (Django)](#backend-django)
   - [Frontend (Expo / React Native)](#frontend-expo--react-native)
 - [Environment Variables](#environment-variables)
+- [Admin (Django Admin)](#admin-django-admin)
 - [API Overview](#api-overview)
   - [Auth](#auth)
   - [Products](#products)
@@ -43,6 +44,7 @@ micro_commerce/
 │   │   └── ...
 │   ├── shop/
 │   │   ├── models.py             # Product, Cart, CartItem, Order, OrderItem
+│   │   ├── admin.py              # Django Admin registration & customizations
 │   │   ├── serializers.py
 │   │   ├── views.py              # Products, Cart, Orders, Auth endpoints
 │   │   ├── auth_views.py         # Signup, verify, /me (if split)
@@ -75,7 +77,7 @@ micro_commerce/
     │   ├── theme.js
     │   ├── layout.js
     │   └── focusRefresh.js
-    └── app.json
+    └── app.config.* / app.json
 ```
 
 ---
@@ -91,15 +93,15 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 source .venv/bin/activate
 pip install -r requirements.txt \
-  || pip install django djangorestframework djangorestframework-simplejwt Pillow django-storages corsheaders
+  || pip install django djangorestframework djangorestframework-simplejwt Pillow corsheaders
 ```
 
 2) **Configure settings** (`microcommerce/settings.py`)
 ```python
-INSTALLED_APPS += ["rest_framework", "corsheaders", "storages", "shop"]
+INSTALLED_APPS += ["rest_framework", "corsheaders", "shop", "django.contrib.admin", "django.contrib.auth"]
 MIDDLEWARE = ["corsheaders.middleware.CorsMiddleware", *MIDDLEWARE]
 
-# Dev email (verification token printed to console)
+# Dev email (verification links printed to console)
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "no-reply@microcommerce.local"
 
@@ -111,11 +113,9 @@ MEDIA_ROOT = BASE_DIR / "media"
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = ["content-type", "authorization", "x-session-key"]
 
-# Used in verification token
+# Used in verification links
 SITE_URL = os.environ.get("SITE_URL", "http://127.0.0.1:8000")
 ```
-
-> **Optional S3**: enable `django-storages` and set `USE_S3=1`, `AWS_*` vars (see **Environment Variables**).
 
 3) **Migrate & seed**
 ```bash
@@ -124,11 +124,17 @@ python manage.py migrate
 python manage.py seed_shop
 ```
 
-4) **Run**
+4) **Create admin user**
+```bash
+python manage.py createsuperuser
+# then follow prompts to set email/username/password
+```
+
+5) **Run**
 ```bash
 python manage.py runserver 0.0.0.0:8000
 ```
-Django serves `/media/` files in DEBUG mode.
+Django serves `/media/` files in DEBUG mode. Django Admin at **http://127.0.0.1:8000/admin/**.
 
 ---
 
@@ -168,6 +174,19 @@ Press **w** for web, or open in Expo Go.
 
 **Frontend**
 - `EXPO_PUBLIC_API_URL` — e.g., `http://127.0.0.1:8000`
+
+---
+
+## Admin (Django Admin)
+
+Use **Django Admin** for all admin-only controls:
+- Manage **Products** (create, edit, upload images, adjust stock, toggle active)
+- View **Orders** & **OrderItems**
+- Inspect **Carts** (optional)
+- Manage **Users**
+
+Access: `http://127.0.0.1:8000/admin/` with your superuser account.  
+Customize `shop/admin.py` to tweak list displays, filters, search, inlines (e.g., `OrderItemInline` under `Order`).
 
 ---
 
@@ -239,6 +258,8 @@ Merges guest cart → user cart when `X-Session-Key` is present.
 
 #### `GET /api/products/<uuid>`
 Product detail.
+
+> **Admin**: manage products entirely via **Django Admin** (`/admin/`). No separate admin API required.
 
 ---
 
@@ -387,7 +408,8 @@ curl -s "$API/api/orders/<uuid>" \
 - SimpleJWT (JWT auth)
 - Pillow (image uploads)
 - django-cors-headers
-- SQLite (dev)
+- SQLite (dev) / PostgreSQL (prod ready)
+- **Django Admin** for admin controls
 
 **Frontend**
 - Expo (React Native) + Expo Router
@@ -400,10 +422,10 @@ curl -s "$API/api/orders/<uuid>" \
 
 ## Known Limitations & Notes
 - **Payments mocked**: `checkout` marks orders `paid`. Integrate a PSP and move status changes to webhooks for real money.
-- **Dev email**: verification emails print to console.
+- **Dev email**: verification emails print to console. Configure SMTP for real mail.
 - **CORS** permissive in dev. Lock down origins/headers in prod.
-- **Cart merge rule** uses **max(existing, incoming)** when merging guest→user (avoid double counts).
-- **Images**: local `/media/` in dev; S3 + CDN recommended for prod.
+- **Cart merge rule** uses **max(existing, incoming)** when merging guest→user (avoid double counts). Change to **sum** if that matches your business logic.
+- **Images**: stored and served locally via `/media/` in dev. For production, consider a CDN/fronting web server for static/media performance.
 - **Security**: add rate limits, strong password validators, HTTPS, secure cookies, and production CORS settings.
 
 ---
@@ -423,13 +445,10 @@ curl -s "$API/api/orders/<uuid>" \
   - In serializers, pass `context={"request": request}` so `ImageField` becomes **absolute URL**.
   - Client `SmartImage` converts relative `/media/...` to absolute using `EXPO_PUBLIC_API_URL`.
 
-- **Web warning about `fetchPriority`**
-  - I use `SmartImage.web.js` (RN web `<Image>`) to avoid the prop; or upgrade `expo-image`.
-
 - **Tabs not refreshing**
   - Each tab screen calls `useRefetchOnFocus(loadFn)` from `lib/focusRefresh.js`.
 
 ---
 
 ## License
-MIT — do what you want, just don’t sue me (Olamilekan Aleshinloye).
+MIT — do what you want, just don’t sue me.
